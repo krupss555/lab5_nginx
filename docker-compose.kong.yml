@@ -1,0 +1,37 @@
+version: "3.8"
+services:
+  users-backend-service:
+    build: ./user-service
+    container_name: users-backend-service
+    ports:
+      - "3001:3001"
+    networks:
+      - my-network
+
+  posts-backend-service:
+    build: ./post-service
+    container_name: posts-backend-service
+    ports:
+      - "3002:3002"
+    networks:
+      - my-network
+
+  kong:
+    image: kong:3.6
+    container_name: kong-gateway
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+    ports:
+      - "8000:8000"   # public proxy port
+    volumes:
+      - ./kong.yml:/kong.yml:ro
+    depends_on:
+      - users-backend-service
+      - posts-backend-service
+    networks:
+      - my-network
+
+networks:
+  my-network:
