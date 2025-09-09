@@ -1,16 +1,16 @@
 version: "3.8"
 services:
-  users-backend-service:
+  user-service:
     build: ./user-service
-    container_name: users-backend-service
+    container_name: user-service
     ports:
       - "3001:3001"
     networks:
       - my-network
 
-  posts-backend-service:
+  post-service:
     build: ./post-service
-    container_name: posts-backend-service
+    container_name: post-service
     ports:
       - "3002:3002"
     networks:
@@ -28,8 +28,8 @@ services:
     volumes:
       - ./kong.yml:/kong.yml:ro
     depends_on:
-      - users-backend-service
-      - posts-backend-service
+      - user-service
+      - post-service
     networks:
       - my-network
 
