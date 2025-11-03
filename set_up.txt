@@ -1,0 +1,61 @@
+1) Create VM instance ->ubuntu
+2) Connect SSH
+_______________old way________________________
+3) Create User
+sudo adduser apps
+sudo usermod -aG sudo apps
+su apps
+sudo ls
+exit
+su - apps
+
+4) Install Docker and Docker Compose
+
+sudo apt-get -y update
+curl -fsSL https://download.docker.com/linux/ubu... | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+sudo apt-get install -y docker-ce
+
+sudo curl -L "https://github.com/docker/compose/rel... -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+sudo groupadd docker
+sudo usermod -aG docker $USER
+
+
+__________________modern way________________
+
+sudo apt update
+sudo apt install -y docker.io docker-compose-plugin
+
+sudo usermod -aG docker $USER
+
+exit 
+//start a new shell
+
+docker run hello-world
+
+sudo apt install -y git
+
+git clone [YOUR_REPO_URL]
+
+cd lab2_microservices
+
+docker compose up --build -d
+
+docker compose ps
+
+Crucial Check: Ensure you correctly created the Firewall Rule in Phase 1 to open port 80 (for Nginx) and ports 3001/3002 (for direct testing), otherwise, external access will fail.
+
+gcloud compute firewall-rules create allow-microservice-ports \
+    --allow tcp:80,tcp:3001,tcp:3002 \
+    --target-tags http-docker-app \
+    --description "Allow HTTP and direct service ports"
+
+# Test User Service
+curl http://[EXTERNAL_IP]/users 
+
+# Test Post Service
+curl http://[EXTERNAL_IP]/posts
+
+docker compose down

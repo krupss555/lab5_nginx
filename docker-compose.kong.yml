@@ -21,7 +21,7 @@ services:
     container_name: kong-gateway
     environment:
       KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /kong.yml
+      KONG_DECLARATIVE_CONFIG: kong.yml
       KONG_PROXY_LISTEN: 0.0.0.0:8000
     ports:
       - "8000:8000"   # public proxy port

@@ -1,15 +1,15 @@
 _format_version: "3.0"
 services:
   - name: user-service
-    url: http://users-backend-service:3001
+    url: http://user-service:3001
     routes:
       - name: user-route
         paths:
-          - /api/v1/users
+          - /users
 
   - name: post-service
-    url: http://posts-backend-service:3002
+    url: http://post-service:3002
     routes:
       - name: post-route
         paths:
-          - /api/v1/posts
+          - /posts
