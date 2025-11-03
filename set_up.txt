@@ -59,3 +59,41 @@ curl http://[EXTERNAL_IP]/users
 curl http://[EXTERNAL_IP]/posts
 
 docker compose down
+
+
+_________using terraform______________________
+
+git clone https://github.com/krupss555/lab5_nginx.git
+cd lab5_nginx
+
+export PROJECT_ID="[YOUR_PROJECT_ID]"
+export REGION="us-central1" # Or your region
+export AR_REPO="microservices-repo"
+
+# Enable necessary GCP APIs and authenticate Docker
+gcloud services enable container.googleapis.com artifactregistry.googleapis.com
+gcloud artifacts repositories create $AR_REPO --repository-format=docker --location=$REGION
+gcloud auth configure-docker $REGION-docker.pkg.dev
+
+# 2a. Build & Push User Service (listens on internal container port 3001)
+docker build ./user-service -t $REGION-docker.pkg.dev/$PROJECT_ID/$AR_REPO/user-service:v1
+docker push $REGION-docker.pkg.dev/$PROJECT_ID/$AR_REPO/user-service:v1
+
+# 2b. Build & Push Post Service (listens on internal container port 3002)
+docker build ./post-service -t $REGION-docker.pkg.dev/$PROJECT_ID/$AR_REPO/post-service:v1
+docker push $REGION-docker.pkg.dev/$PROJECT_ID/$AR_REPO/post-service:v1
+
+cd gke_simple_tf
+terraform init
+
+terraform plan
+
+terraform apply
+# Type 'yes' when prompted.
+
+terraform destroy
+
+
+____________Kubernetes__________________
+
+____________Github Actions______________
