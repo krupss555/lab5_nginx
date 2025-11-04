@@ -1,0 +1,356 @@
+Phase 1: Application Code & Dockerfiles
+We will create two new Node.js microservices that use ports 3003 (Inventory) and 3004 (Orders).
+
+1. Inventory Service (Port 3003)
+This service manages a list of products.
+
+A. Node.js Code (inventory-service/index.js)
+JavaScript
+
+const express = require('express');
+const app = express();
+const PORT = 3003;
+
+app.use(express.json());
+
+let products = [];
+
+// GET /products: Retrieve all products
+app.get('/products', (req, res) => {
+  res.json({ service: 'Inventory Service', data: products });
+});
+
+// POST /products: Create a new product
+app.post('/products', (req, res) => {
+  const { name, quantity } = req.body;
+  if (!name || quantity === undefined) {
+    return res.status(400).send('Missing name or quantity');
+  }
+  const newProduct = { id: products.length + 1, name, quantity };
+  products.push(newProduct);
+  res.status(201).json(newProduct);
+});
+
+app.listen(PORT, () => {
+  console.log(`Inventory Service running on port ${PORT}`);
+});
+B. Supporting Files (inventory-service/package.json)
+JSON
+
+{
+  "name": "inventory-service",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
+C. Dockerfile (inventory-service/Dockerfile)
+Dockerfile
+
+FROM node:lts
+WORKDIR /app
+COPY package.json ./
+RUN npm install
+COPY . .
+EXPOSE 3003
+CMD ["npm", "start"]
+2. Order Service (Port 3004)
+This service manages a list of customer orders.
+
+A. Node.js Code (order-service/index.js)
+JavaScript
+
+const express = require('express');
+const app = express();
+const PORT = 3004;
+
+app.use(express.json());
+
+let orders = [];
+
+// GET /orders: Retrieve all orders
+app.get('/orders', (req, res) => {
+  res.json({ service: 'Order Service', data: orders });
+});
+
+// POST /orders: Create a new order
+app.post('/orders', (req, res) => {
+  const { userId, productId, quantity } = req.body;
+  if (!userId || !productId || !quantity) {
+    return res.status(400).send('Missing required order fields');
+  }
+  const newOrder = { id: orders.length + 1, userId, productId, quantity, status: 'Pending' };
+  orders.push(newOrder);
+  res.status(201).json(newOrder);
+});
+
+app.listen(PORT, () => {
+  console.log(`Order Service running on port ${PORT}`);
+});
+B. Supporting Files (order-service/package.json)
+JSON
+
+{
+  "name": "order-service",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
+C. Dockerfile (order-service/Dockerfile)
+Dockerfile
+
+FROM node:lts
+WORKDIR /app
+COPY package.json ./
+RUN npm install
+COPY . .
+EXPOSE 3004
+CMD ["npm", "start"]
+💻 Phase 2: Deployment Methods
+A. Method 1: Local Docker Compose (VM Instance Deployment)
+This file runs both services on a single VM instance, exposing them directly.
+
+docker-compose.yml (In the root directory)
+YAML
+
+version: "3.8"
+services:
+  inventory-service:
+    build: ./inventory-service
+    container_name: inventory-service
+    ports:
+      - "3003:3003"
+    networks:
+      - micro-network
+
+  order-service:
+    build: ./order-service
+    container_name: order-service
+    ports:
+      - "3004:3004"
+    networks:
+      - micro-network
+
+networks:
+  micro-network:
+Commands for VM Instance Deployment (Simplified)
+Assuming your project folder is named microservices-project:
+
+SSH into VM: (Follow steps 1-7 from the previous guide to install Docker/Compose).
+
+Transfer Files: gcloud compute scp --recurse microservices-project [VM_NAME]:~/ --zone [ZONE]
+
+Run Services (Inside VM SSH):
+
+Bash
+
+cd microservices-project
+docker compose up --build -d
+Test (From Local Terminal):
+
+Get IP: gcloud compute instances describe [VM_NAME] --format='get(networkInterfaces[0].accessConfigs[0].natIP)'
+
+Test Inventory: curl http://[EXTERNAL_IP]:3003/products
+
+Test Orders: curl http://[EXTERNAL_IP]:3004/orders
+
+B. Method 2: Terraform / Cloud Run Deployment (Simplest)
+This uses Terraform to deploy the services to the serverless Cloud Run platform.
+
+Pre-step: Push Images (Run on Local/Cloud Shell)
+Bash
+
+# Set variables (same as Phase 1)
+export PROJECT_ID="[YOUR_PROJECT_ID]"
+export REGION="us-central1"
+export AR_REPO="microservices-repo"
+
+# Push images built in Phase 1
+docker push $REGION-docker.pkg.dev/$PROJECT_ID/$AR_REPO/inventory-service:v1
+docker push $REGION-docker.pkg.dev/$PROJECT_ID/$AR_REPO/order-service:v1
+Terraform Code (main.tf in a new folder)
+Terraform
+
+# --- Configuration ---
+locals {
+  gcp_project_id = "[YOUR_PROJECT_ID]" # REPLACE ME
+  gcp_region     = "us-central1"       # REPLACE ME
+  ar_image_path  = "us-central1-docker.pkg.dev/[YOUR_PROJECT_ID]/microservices-repo" # REPLACE ME
+}
+
+terraform {
+  required_providers {
+    google = { source = "hashicorp/google", version = "~> 5.0" }
+  }
+}
+
+provider "google" {
+  project = local.gcp_project_id
+  region  = local.gcp_region
+}
+
+# --- 1. Inventory Service Deployment (Port 3003) ---
+resource "google_cloud_run_v2_service" "inventory_service" {
+  name     = "inventory-service"
+  location = local.gcp_region
+  
+  template {
+    containers {
+      image = "${local.ar_image_path}/inventory-service:v1"
+      ports { container_port = 3003 }
+    }
+  }
+  traffic { type = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST", percent = 100 }
+}
+
+# Allow public access
+resource "google_cloud_run_v2_service_iam_member" "inventory_iam" {
+  location = google_cloud_run_v2_service.inventory_service.location
+  name     = google_cloud_run_v2_service.inventory_service.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# --- 2. Order Service Deployment (Port 3004) ---
+resource "google_cloud_run_v2_service" "order_service" {
+  name     = "order-service"
+  location = local.gcp_region
+  
+  template {
+    containers {
+      image = "${local.ar_image_path}/order-service:v1"
+      ports { container_port = 3004 }
+    }
+  }
+
+  traffic { type = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST", percent = 100 }
+}
+
+# Allow public access
+resource "google_cloud_run_v2_service_iam_member" "order_iam" {
+  location = google_cloud_run_v2_service.order_service.location
+  name     = google_cloud_run_v2_service.order_service.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# Output the final public URLs
+output "inventory_service_url" {
+  value = google_cloud_run_v2_service.inventory_service.uri
+}
+output "order_service_url" {
+  value = google_cloud_run_v2_service.order_service.uri
+}
+C. Method 3: Kubernetes / GKE Deployment
+This uses basic Kubernetes YAML to deploy the services to an existing GKE cluster.
+
+1. Inventory Service YAML (inventory-service.yaml)
+YAML
+
+# ----------------------------------------------------
+# 1. DEPLOYMENT: Inventory Service
+# ----------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  labels:
+    app: inventory-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventory-service
+  template:
+    metadata:
+      labels:
+        app: inventory-service
+    spec:
+      containers:
+      - name: inventory-service-container
+        # 🚨 REPLACE [AR_PATH] with your full Artifact Registry path
+        image: [AR_IMAGE_REGISTRY_PATH]/inventory-service:v1
+        ports:
+        - containerPort: 3003 
+---
+# ----------------------------------------------------
+# 2. SERVICE: Exposes Inventory via LoadBalancer
+# ----------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-service-external
+spec:
+  selector:
+    app: inventory-service
+  ports:
+    - protocol: TCP
+      port: 3003       # External Port (access via http://IP:3003/)
+      targetPort: 3003 # Container Port
+  type: LoadBalancer 
+2. Order Service YAML (order-service.yaml)
+YAML
+
+# ----------------------------------------------------
+# 1. DEPLOYMENT: Order Service
+# ----------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  labels:
+    app: order-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+      - name: order-service-container
+        # 🚨 REPLACE [AR_PATH] with your full Artifact Registry path
+        image: [AR_IMAGE_REGISTRY_PATH]/order-service:v1
+        ports:
+        - containerPort: 3004 # Internal port 3004
+---
+# ----------------------------------------------------
+# 2. SERVICE: Exposes Order via LoadBalancer
+# ----------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service-loadbalancer
+spec:
+  selector:
+    app: order-service
+  ports:
+    - protocol: TCP
+      port: 3004       # External Port (access via http://IP:3004/)
+      targetPort: 3004 # Container port
+  type: LoadBalancer 
+Commands for GKE Deployment (Run on Local/Cloud Shell)
+Apply Services:
+
+Bash
+
+kubectl apply -f inventory-service.yaml
+kubectl apply -f order-service.yaml
+Get Public IPs:
+
+Bash
+
+kubectl get services
+The output will list the external IP addresses for inventory-service-external:3003 and order-service-loadbalancer:3004.

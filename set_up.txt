@@ -95,5 +95,102 @@ terraform destroy
 
 
 ____________Kubernetes__________________
+gcloud auth login
+gccloud config set project <project id>
+
+enable kubernetes apis, artifactregistry apis , create cluster , create artifactregistry repo 
+
+HOW TO BUILD and PUSH docker images to artifactregistry
+
+1)docker images
+2) git clone
+3) ls , cd repo
+4) cat Dockerfile
+5) docker build -t name_image:tag_name .
+6) docker images 
+7) docker tag name_image:tag_name path_to_repoAR/name_image:tag_name
+8) docker images
+9) docker push path_to_repoAR/name_image:tag_name
+
+10)cloud container clusters get-credentials my-manual-cluster --zone us-central1-c
+11)kubectl apply -f microservice-deploy.yaml
+12)kubectl get service service_name
+13)curl http://[EXTERNAL-IP]:port/
+
+
+____Readme for kubernetes_
+Steps
+ Create a kubernetes cluster on GKE.
+ Setup Connection to created GKE cluster in with your local machine or cloud shell.
+gcloud container clusters get-credentials <CLUSTER_NAME> --zone <ZONE> --project <PROJECT_ID>
+ Create a simple nodejs/express application.
+ Write Dockerfile for the application
+FROM --platform=linux/amd64 node:14
+WORKDIR /usr/app
+COPY package.json .
+RUN npm install
+COPY . .
+EXPOSE 80
+CMD ["node","app.js"]
+ Build the Docker image
+docker build -t us.gcr.io/<PROJECT_ID>/imagename:tag .
+ Authenticate to GCR
+gcloud auth configure-docker
+ Push docker image to GCR(Google Container Registry)
+docker push us.gcr.io/<PROJECT_ID>/imagename:tag
+ Test the application using docker.
+docker run -d -p 3000:80 us.gcr.io/<PROJECT_ID>/imagename:tag
+ Write kubernetes manifest file for deployment. deploy.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name:  nodeappdeployment
+  labels:
+    type: backend
+    app: nodeapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      type: backend
+      app: nodeapp
+  template:
+    metadata:
+      name: nodeapppod
+      labels:
+        type: backend
+        app: nodeapp
+    spec:
+      containers:
+        - name: nodecontainer
+          image: us.gcr.io/<PROJECT_ID>/imagename:tag
+          ports:
+            - containerPort: 80
+ Write kubernetes manifest file for service. service.yml
+kind: Service
+apiVersion: v1
+metadata:
+  name: nodeapp-load-service
+spec:
+  ports:
+    - port: 80 
+      targetPort: 80
+  selector:
+    type: backend
+    app: nodeapp  
+  type: LoadBalancer
+ Apply manifest file to create deployment.
+kubectl apply -f deploy.yml
+ Check status of the deployment.
+kubectl get deploy
+ Apply manifest file to create load balancer service.
+kubectl apply -f service.yml
+ Check status of service.
+kubectl get svc
+ Check the external IP of the service in the browser.
+Cleanup
+kubectl delete -f deploy.yml
+kubectl delete -f service.yml
 
 ____________Github Actions______________
+

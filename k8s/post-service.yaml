@@ -1,0 +1,41 @@
+# ----------------------------------------------------
+# 1. DEPLOYMENT: Defines the container and its image
+# ----------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: post-service-deployment
+  labels:
+    app: post-service
+spec:
+  replicas: 2 # Start with 2 copies of your service
+  selector:
+    matchLabels:
+      app: post-service
+  template:
+    metadata:
+      labels:
+        app: post-service
+    spec:
+      containers:
+      - name: post-service-container
+        # 🚨 Replace [AR_PATH] with your full Artifact Registry path, e.g., us-central1-docker.pkg.dev/my-gcp-project/microservices-repo
+        image: [AR_IMAGE_REGISTRY_PATH]/post-service:v1
+        ports:
+        - containerPort: 3002 # Internal port the Node.js app is listening on
+---
+# ----------------------------------------------------
+# 2. SERVICE: Exposes the Deployment externally
+# ----------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: post-service-loadbalancer
+spec:
+  selector:
+    app: post-service # Links to the Deployment by label
+  ports:
+    - protocol: TCP
+      port: 3002     # Public port (e.g., access via http://IP:3002/)
+      targetPort: 3002 # Container port (3002)
+  type: LoadBalancer # Provisions a dedicated external Load Balancer IP
